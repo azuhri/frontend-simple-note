@@ -1,62 +1,51 @@
-import Image from "next/image";
+import { useRouter } from "next/router";
 import Layout from "@/components/layout";
-import { postData, getData, deleteData } from "@/utils/api";
+import { getData, deleteData, updateData } from "@/utils/api";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 
-export async function getServerSideProps() {
-  return {
-    props: {
-      ENDPOINT_API: process.env.ENDPOINT_API,
-    },
-  };
-}
-
-export default function Home({ ENDPOINT_API }) {
-  const [title, setTitle] = useState([]);
-  const [description, setDescription] = useState([]);
+function NoteDetail({ note, ENDPOINT_API }) {
+  const [title, setTitle] = useState(note.title);
+  const [description, setDescription] = useState(note.description);
 
   const formatDate = (date) => {
     return format(new Date(date), "dd/MM/yyyy");
   };
-  
+
+  const handleChangeTitle = (event) => {
+    setTitle(event.target.value);
+  };
+
   const deleteNote = async (event) => {
     let confirmation = confirm("Apakah Anda ingin menghapus note ini ?");
-    if(confirmation) {
+    if (confirmation) {
       try {
-        const noteId = event.currentTarget.getAttribute('data-noteid');
-        const response = await deleteData(ENDPOINT_API+`/${noteId}`);
+        const noteId = event.currentTarget.getAttribute("data-noteid");
+        const response = await deleteData(ENDPOINT_API + `/${noteId}`);
         const allNotes = await getAllNote();
         setNotes(allNotes);
       } catch (error) {
         alert(error);
       }
     }
-  }
-
-  const handleChangeTitle = (event) => {
-    setTitle(event.target.value);
   };
 
-  const handleChangeDesc = (event) => {
-    setDescription(event.target.value);
-  };
-
-  const submitNewNote = async () => {
+  const updateNote = async () => {
     const data = {
       title,
       description,
     };
     try {
-      const response = await postData(ENDPOINT_API, data);
-      setTitle("");
-      setDescription("");
-      const allNotes = await getAllNote();
-      setNotes(allNotes);
+      const response = await updateData(`${ENDPOINT_API}/${note.id}`, data);
+      alert("Berhasil menyimpan catatan!");
     } catch (error) {
       alert(error);
     }
+  };
+
+  const handleChangeDesc = (event) => {
+    setDescription(event.target.value);
   };
 
   const getAllNote = async () => {
@@ -73,10 +62,10 @@ export default function Home({ ENDPOINT_API }) {
       const allNotes = await getAllNote();
       setNotes(allNotes);
     };
-
+    setTitle(note.title);
+    setDescription(note.description);
     fetchData();
-  }, []);
-
+  }, [note.title, note.description]);
   return (
     <Layout>
       {{
@@ -111,19 +100,59 @@ export default function Home({ ENDPOINT_API }) {
             <div className="flex justify-end w-full">
               <button
                 type="submit"
-                onClick={submitNewNote}
-                className="py-2 px-4 bg-green-500 rounded-md text-white text-xs"
+                onClick={updateNote}
+                className="py-2 px-4 bg-blue-500 rounded-md text-white text-xs"
               >
-                Buat Catatan
+                Simpan Catatan
               </button>
             </div>
           </div>
         ),
+        addNote: (
+          <>
+            <Link
+              href="/"
+              className="flex items-center justify-center p-2 font-bold rounded text-xs text-center w-full bg-blue-500 text-white"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="24"
+                height="24"
+                stroke="currentColor"
+                stroke-width="2"
+                fill="none"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="css-i6dzq1"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="12" y1="18" x2="12" y2="12"></line>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+              </svg>
+              <p className="text-xs ml-2">
+                Tambah Catatan
+              </p>
+            </Link>
+          </>
+        ),
         list: (
           <>
-            {notes.map((note) => (
-              <div className="p-2 my-2 shadow  border-gray-200 border rounded-md relative">
-                <button onClick={deleteNote} data-noteid={note.id} className="absolute top-[-10px] right-[-5px]">
+            {notes.map((listNote) => (
+              <div
+                className={`p-2 my-2 shadow ${
+                  listNote.id == note.id
+                    ? "bg-gray-200 shadow border-2 border-slate-300"
+                    : ""
+                } border-gray-200 border rounded-md relative`}
+              >
+                <button
+                  onClick={deleteNote}
+                  data-noteid={listNote.id}
+                  className={`absolute top-[-10px] right-[-5px] ${
+                    listNote.id == note.id ? "hidden" : ""
+                  }`}
+                >
                   <svg
                     viewBox="0 0 24 24"
                     width="20"
@@ -140,12 +169,12 @@ export default function Home({ ENDPOINT_API }) {
                     <line x1="9" y1="9" x2="15" y2="15"></line>
                   </svg>
                 </button>
-                <Link href={`/note/${note.id}`} key={note.id}>
+                <Link href={`/note/${listNote.id}`} key={listNote.id}>
                   <div className="pointer ">
                     <p className="text-xs font-bold text-yellow-600">Judul: </p>
-                    <p className="text-[10px]">{note.title}</p>
+                    <p className="text-[10px]">{listNote.title}</p>
                     <span className="font-bold text-green-700 text-[4px] flex justify-end mt-2">
-                      {formatDate(note.createdAt)}
+                      {formatDate(listNote.createdAt)}
                     </span>
                   </div>
                 </Link>
@@ -157,3 +186,27 @@ export default function Home({ ENDPOINT_API }) {
     </Layout>
   );
 }
+
+export async function getServerSideProps(context) {
+  const { query } = context;
+  const { noteId } = query;
+  const response = await getData(`${process.env.ENDPOINT_API}/${noteId}`);
+  const note = response.data;
+  if (!note) {
+    return {
+      redirect: {
+        destination: '/404',
+        permanent: false,
+      },
+    };
+  }
+  return {
+    props: {
+      ENDPOINT_API: process.env.ENDPOINT_API,
+      noteId,
+      note,
+    },
+  };
+}
+
+export default NoteDetail;
